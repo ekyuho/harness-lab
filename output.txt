@@ -1,0 +1,202 @@
+❯ /harness-lab 가족 여행 준비 하네스를 만들어줘
+
+  Read 2 files, listed 2 directories (ctrl+o to expand)
+
+● 청사진부터 만들겠습니다. 가족 여행 준비를 사람의 일로 풀어본 뒤, Agent/Skill/Orchestrator 구조로 옮겨보는 흐름입니다.
+
+  ---
+  가족 여행 준비 하네스 — 청사진
+
+  Phase 1. 사람이 한다면
+
+  가족 한 명이 여행을 준비할 때의 순서를 그대로 적어봅니다.
+
+  1. 가족 구성, 가용 일정, 대략의 예산, 선호(바다/산/도시 등)를 모은다.
+  2. 후보 여행지 2-3곳을 조사하고 비교한다.
+  3. 예산을 항목별(교통/숙박/식비/관광/예비)로 잡는다.
+  4. 교통과 숙소, 날짜별 일정을 정한다.
+  5. 가족 구성원별 짐 목록을 만들고, 약·서류·비상 대비를 점검한다.
+  6. 출발 전 빠진 것이 없는지 마지막으로 확인한다.
+
+  Phase 2. 산출물
+
+  - 최종 산출물: trip-plan.md (여행지 선택 근거 + 날짜별 일정 + 예산표 + 짐/안전 체크리스트)
+  - 중간 산출물: destinations.md, budget.md, itinerary.md, packing-safety.md
+  - 성공 기준: 가족 구성원 모두의 요구가 반영됨, 예산 합계가 한도 안, 일정에 이동시간/휴식이 포함됨, 짐과 비상 대비가
+  누락 없음
+
+  Phase 3. 팀 패턴
+
+  Pipeline + 마지막 Reviewer. 조사 → 예산 → 일정은 앞 결과가 뒤 단계의 재료가 됩니다. 마지막에 한 명이 전체를 다시 훑어
+  빠진 것을 잡습니다.
+
+  Phase 4. Agent 역할표
+
+  Agent: trip-researcher
+  역할: 가족 조건에 맞는 여행지 후보 2-3곳 조사·비교
+  입력: 가족 구성, 일정, 선호, 예산 한도
+  출력: destinations.md (후보별 장단점, 추천 1순위)
+  하지 말 것: 가족 구성원 중 특정인의 제약(나이, 알레르기 등) 무시
+  ────────────────────────────────────────
+  Agent: budget-planner
+  역할: 항목별 예산표 작성, 한도 초과 시 대안 제시
+  입력: 선택된 여행지, 일정, 인원, 한도
+  출력: budget.md (항목별 표 + 예비비 10%)
+  하지 말 것: 한도 무시한 채 계획 확정
+  ────────────────────────────────────────
+  Agent: itinerary-builder
+  역할: 날짜별 이동·숙박·관광 일정 작성
+  입력: 여행지, 예산표, 가족 체력/연령
+  출력: itinerary.md (Day별 표 + 이동시간 포함)
+  하지 말 것: 어린이/노인 동반 시 빡빡한 일정
+  ────────────────────────────────────────
+  Agent: packing-safety-reviewer
+  역할: 짐 목록, 약·서류·비상 대비 점검, 전체 검토
+  입력: 일정 + 가족 구성 + 예산표
+  출력: packing-safety.md, trip-plan.md (통합본)
+  하지 말 것: 다른 산출물 내용을 임의로 바꾸기 (지적만)
+
+  Phase 5. Skill 목록
+
+  작업 매뉴얼은 Agent마다 하나씩 둡니다.
+
+  - destination-research — 후보 비교표 형식, 가족 제약 체크리스트
+  - family-budgeting — 항목 분류, 예비비 규칙, 한도 초과 시 절충안 절차
+  - family-itinerary — Day별 표 형식, 이동시간/휴식 규칙, 연령대별 페이스 가이드
+  - pre-trip-checklist — 짐(공통/개인별), 서류/약/보험, 비상연락처 체크리스트
+
+  오케스트레이터 입구 Skill:
+
+  - trip-planning-orchestrator — 전체 진행표. 단계별로 어떤 Agent를 호출하고, 어떤 파일이 다음 단계로 넘어가는지 관리.
+
+  Phase 6. Orchestrator 흐름
+
+  시작 입력: 가족 구성, 날짜, 예산 한도, 선호
+    ↓
+  1) trip-researcher  → destinations.md  (사람 확인: 여행지 1곳 확정)
+    ↓
+  2) budget-planner   → budget.md        (한도 초과 시 1)로 되돌림)
+    ↓
+  3) itinerary-builder → itinerary.md
+    ↓
+  4) packing-safety-reviewer → packing-safety.md + trip-plan.md (통합본)
+    ↓
+  완료: trip-plan.md
+
+  실패/되돌림 조건:
+  - 예산이 한도의 110%를 넘으면 → 여행지 또는 일정 단계로 되돌림
+  - 가족 구성원 중 특정 제약(예: 영유아 동반인데 8시간 이동)이 발견되면 → itinerary 재작성
+
+  Phase 7. 테스트 프롬프트 3개
+
+  1. 정상 사례 — "성인 2명, 7살·4살 아이 2명, 6월 둘째 주 3박 4일, 예산 200만원, 바다 선호. 여행 계획 만들어줘."
+  2. 애매한 사례 — "가족 여행 가고 싶은데 어디가 좋을까?" (정보 부족 → Orchestrator가 부족한 정보를 먼저 묻는지 확인)
+  3. 실패하기 쉬운 사례 — "70대 부모님, 우리 부부, 3개월 아기. 일본 5일, 예산 150만원, 디즈니랜드 포함." (예산 부족 +
+  영유아 + 고령자 + 빡빡한 일정 → 되돌림 조건이 작동하는지 확인)
+
+  파일 구조 미리보기
+
+  - 최종 산출물: trip-plan.md (여행지 선택 근거 + 날짜별 일정 + 예산표 + 짐/안전 체크리스트)
+  - 중간 산출물: destinations.md, budget.md, itinerary.md, packing-safety.md
+  - 성공 기준: 가족 구성원 모두의 요구가 반영됨, 예산 합계가 한도 안, 일정에 이동시간/휴식이 포함됨, 짐과 비상 대비가 누락 없음
+
+  Phase 3. 팀 패턴
+
+  Pipeline + 마지막 Reviewer. 조사 → 예산 → 일정은 앞 결과가 뒤 단계의 재료가 됩니다. 마지막에 한 명이 전체를 다시 훑어 빠진 것을 잡습니다.
+
+  Phase 4. Agent 역할표
+
+  Agent: trip-researcher
+  역할: 가족 조건에 맞는 여행지 후보 2-3곳 조사·비교
+  입력: 가족 구성, 일정, 선호, 예산 한도
+  출력: destinations.md (후보별 장단점, 추천 1순위)
+  하지 말 것: 가족 구성원 중 특정인의 제약(나이, 알레르기 등) 무시
+  ────────────────────────────────────────
+  Agent: budget-planner
+  역할: 항목별 예산표 작성, 한도 초과 시 대안 제시
+  입력: 선택된 여행지, 일정, 인원, 한도
+  출력: budget.md (항목별 표 + 예비비 10%)
+  하지 말 것: 한도 무시한 채 계획 확정
+  ────────────────────────────────────────
+  Agent: itinerary-builder
+  역할: 날짜별 이동·숙박·관광 일정 작성
+  입력: 여행지, 예산표, 가족 체력/연령
+  출력: itinerary.md (Day별 표 + 이동시간 포함)
+  하지 말 것: 어린이/노인 동반 시 빡빡한 일정
+  ────────────────────────────────────────
+  Agent: packing-safety-reviewer
+  역할: 짐 목록, 약·서류·비상 대비 점검, 전체 검토
+  입력: 일정 + 가족 구성 + 예산표
+  출력: packing-safety.md, trip-plan.md (통합본)
+  하지 말 것: 다른 산출물 내용을 임의로 바꾸기 (지적만)
+
+  Phase 5. Skill 목록
+
+  작업 매뉴얼은 Agent마다 하나씩 둡니다.
+
+  - destination-research — 후보 비교표 형식, 가족 제약 체크리스트
+  - family-budgeting — 항목 분류, 예비비 규칙, 한도 초과 시 절충안 절차
+  - family-itinerary — Day별 표 형식, 이동시간/휴식 규칙, 연령대별 페이스 가이드
+  - pre-trip-checklist — 짐(공통/개인별), 서류/약/보험, 비상연락처 체크리스트
+
+  오케스트레이터 입구 Skill:
+
+  - trip-planning-orchestrator — 전체 진행표. 단계별로 어떤 Agent를 호출하고, 어떤 파일이 다음 단계로 넘어가는지 관리.
+
+  Phase 6. Orchestrator 흐름
+
+  시작 입력: 가족 구성, 날짜, 예산 한도, 선호
+    ↓
+  1) trip-researcher  → destinations.md  (사람 확인: 여행지 1곳 확정)
+    ↓
+  2) budget-planner   → budget.md        (한도 초과 시 1)로 되돌림)
+    ↓
+  3) itinerary-builder → itinerary.md
+    ↓
+  4) packing-safety-reviewer → packing-safety.md + trip-plan.md (통합본)
+    ↓
+  완료: trip-plan.md
+
+  실패/되돌림 조건:
+  - 예산이 한도의 110%를 넘으면 → 여행지 또는 일정 단계로 되돌림
+  - 가족 구성원 중 특정 제약(예: 영유아 동반인데 8시간 이동)이 발견되면 → itinerary 재작성
+
+  Phase 7. 테스트 프롬프트 3개
+
+  1. 정상 사례 — "성인 2명, 7살·4살 아이 2명, 6월 둘째 주 3박 4일, 예산 200만원, 바다 선호. 여행 계획 만들어줘."
+  2. 애매한 사례 — "가족 여행 가고 싶은데 어디가 좋을까?" (정보 부족 → Orchestrator가 부족한 정보를 먼저 묻는지 확인)
+  3. 실패하기 쉬운 사례 — "70대 부모님, 우리 부부, 3개월 아기. 일본 5일, 예산 150만원, 디즈니랜드 포함." (예산 부족 + 영유아 + 고령자 + 빡빡한 일정 →
+  되돌림 조건이 작동하는지 확인)
+
+  파일 구조 미리보기
+
+  E:\Projects\harness-study-travel\
+  ├── CLAUDE.md                                    # 프로젝트 안내판 (자연어 요청 → orchestrator 라우팅)
+  └── .claude\
+      ├── agents\
+      │   ├── trip-researcher.md
+      │   ├── budget-planner.md
+      │   ├── itinerary-builder.md
+      │   └── packing-safety-reviewer.md
+      └── skills\
+          ├── trip-planning-orchestrator\SKILL.md  # 전체 진행표 (입구)
+          ├── destination-research\SKILL.md
+          ├── family-budgeting\SKILL.md
+          ├── family-itinerary\SKILL.md
+          └── pre-trip-checklist\SKILL.md
+
+  자연어 라우팅 예시(CLAUDE.md에 들어갈 규칙):
+  - "가족 여행 준비해줘", "여행 일정 다시 짜줘", "예산 안에 맞는 여행지 추천해줘" → trip-planning-orchestrator 먼저 호출
+
+  ---
+  이 구조로 실제 파일까지 만들어드릴까요? 아니면 가족 구성·실제 여행 조건을 먼저 알려주시면 그 조건을 청사진에 반영한 뒤 진행해도 됩니다.
+
+✻ Baked for 1m 4s
+
+※ recap: 가족 여행 준비 하네스 청사진을 만들어 4-Agent Pipeline 구조(조사→예산→일정→점검)와 파일 구조까지 제안한 상태입니다. 다음은 사용자가 청사진을
+  승인하면 실제 `.claude/agents`, `.claude/skills`, `CLAUDE.md` 파일을 생성하는 것입니다. (disable recaps in /config)
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 응 이 구조로 만들어줘
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ? for shortcuts
